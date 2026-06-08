@@ -12,19 +12,18 @@ Implemented foundation:
 
 ## Android testing
 
-The app is wired to the backend running on the host at `http://127.0.0.1:35299`.
-For Android emulator traffic, the app uses `http://10.0.2.2:35299`, which is the
-emulator alias for the host machine.
+The app is wired to the deployed backend at
+`https://hospital-app-production-a073.up.railway.app` by default.
 
 ```bash
 npm install
 npm run typecheck
 ```
 
-Make sure the backend is running, then verify it from the host:
+Verify the deployed backend from the host:
 
 ```bash
-curl http://127.0.0.1:35299/health
+curl https://hospital-app-production-a073.up.railway.app/health
 ```
 
 Start Metro in one terminal:
@@ -40,9 +39,10 @@ second terminal:
 npm run android
 ```
 
-For a physical Android device, `10.0.2.2` will not work. Either change
-`defaultApiBaseUrl` in `src/services/apiClient.ts` to your computer's LAN URL
-or forward the backend port with:
+To point the app at a local backend during development, set `API_BASE_URL` in a
+local `.env` file, for example `http://10.0.2.2:35299` for an Android emulator.
+For a physical Android device, use your computer's LAN URL or forward the
+backend port with:
 
 ```bash
 adb reverse tcp:35299 tcp:35299

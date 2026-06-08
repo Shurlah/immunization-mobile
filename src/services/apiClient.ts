@@ -1,13 +1,9 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { Platform } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
 import type { AuthSession } from '../shared/types';
 
-const defaultApiBaseUrl = Platform.select({
-  android: 'http://10.0.2.2:35299',
-  default: 'http://127.0.0.1:35299'
-});
+const defaultApiBaseUrl = 'https://hospital-app-production-a073.up.railway.app';
 
 export const apiClient = axios.create({
   baseURL: process.env.API_BASE_URL ?? defaultApiBaseUrl,
