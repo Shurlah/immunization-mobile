@@ -1,7 +1,7 @@
 import NetInfo from '@react-native-community/netinfo';
-import { db } from '../database/localDb';
+import { applyServerChange, db } from '../database/localDb';
 import { apiClient } from './apiClient';
-import type { AuthSession, SyncQueueItem } from '../shared/types';
+import type { AuthSession, ServerChangeDto, SyncQueueItem } from '../shared/types';
 
 let syncing = false;
 
@@ -96,11 +96,31 @@ async function uploadPending(session: AuthSession, items: SyncQueueItem[]) {
 async function downloadServerChanges() {
   const state = await db.execute(`SELECT LastPulledServerVersion FROM SyncState WHERE Id = 'default';`);
   const rows = (state.rows ?? []) as Array<{ LastPulledServerVersion?: number }>;
-  const sinceVersion = Number(rows[0]?.LastPulledServerVersion ?? 0);
-  const response = await apiClient.get('/api/sync/download', { params: { sinceVersion } });
+  let sinceVersion = Number(rows[0]?.LastPulledServerVersion ?? 0);
 
-  await db.execute(
-    `UPDATE SyncState SET LastPulledServerVersion = ? WHERE Id = 'default';`,
-    [response.data.serverVersion]
-  );
+  // The server caps each download page at 500 changes, so keep pulling pages until it reports
+  // no further progress — otherwise a large backlog would only ever partially apply.
+  for (;;) {
+    const response = await apiClient.get('/api/sync/download', { params: { sinceVersion } });
+    const changes = (response.data.changes ?? []) as ServerChangeDto[];
+
+    for (const change of changes) {
+      try {
+        await applyServerChange(change);
+      } catch (error) {
+        // Skip a change this client doesn't understand rather than aborting the whole sync,
+        // but log it — a silent version-marker bug is exactly what this fix was for.
+        console.warn(`Failed to apply ${change.entityType} ${change.operationType} change ${change.entityId}:`, error);
+      }
+    }
+
+    const serverVersion = Number(response.data.serverVersion ?? sinceVersion);
+    await db.execute(`UPDATE SyncState SET LastPulledServerVersion = ? WHERE Id = 'default';`, [serverVersion]);
+
+    if (changes.length === 0 || serverVersion <= sinceVersion) {
+      break;
+    }
+
+    sinceVersion = serverVersion;
+  }
 }

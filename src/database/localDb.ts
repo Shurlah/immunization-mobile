@@ -1,7 +1,7 @@
 import { open } from '@op-engineering/op-sqlite';
 import { migrations } from './schema';
 import { createUuid } from '../shared/uuid';
-import type { ChildSummary, DashboardState, FacilityOption, VaccineOption } from '../shared/types';
+import type { ChildSummary, DashboardState, FacilityOption, ServerChangeDto, VaccineOption } from '../shared/types';
 
 export const db = open({ name: 'immunization-local.db' });
 
@@ -98,6 +98,99 @@ export async function getLocalChildren(query: string): Promise<ChildSummary[]> {
   );
 
   return (result.rows ?? []) as unknown as ChildSummary[];
+}
+
+/**
+ * Applies one downloaded server change to the matching local table, so records created or
+ * edited elsewhere (another device, the admin web app) become visible for offline search once
+ * a sync has pulled them down. Only entity types the backend actually logs to ServerChangeLog
+ * are handled (Child, Vaccine, VaccineSchedule, ImmunizationRecord) — Facility/Appointment changes
+ * are not currently logged server-side, so there is nothing to apply for those yet. Guardian has
+ * no changelog entries of its own either, but a Child's payload happens to nest its guardian, so
+ * that gets upserted alongside the child as a bonus.
+ */
+type Scalar = string | number | boolean | null;
+
+function scalar(value: unknown): Scalar {
+  return value === undefined ? null : (value as Scalar);
+}
+
+export async function applyServerChange(change: ServerChangeDto) {
+  const payload = change.payload;
+
+  switch (change.entityType) {
+    case 'Child': {
+      if (change.operationType === 'Delete') {
+        await db.execute(`DELETE FROM Children WHERE Id = ?;`, [change.entityId]);
+        return;
+      }
+
+      const guardian = payload.guardian as Record<string, unknown> | null | undefined;
+      if (guardian?.id) {
+        await db.execute(
+          `INSERT OR REPLACE INTO Guardians (Id, FullName, PhoneNumber, RelationshipToChild, Address, PendingSync)
+           VALUES (?, ?, ?, ?, ?, 0);`,
+          [scalar(guardian.id), scalar(guardian.fullName), scalar(guardian.phoneNumber), scalar(guardian.relationshipToChild), scalar(guardian.address)]
+        );
+      }
+
+      await db.execute(
+        `INSERT OR REPLACE INTO Children (Id, FirstName, MiddleName, LastName, DateOfBirth, Sex, GuardianId, FacilityId, PendingSync)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0);`,
+        [
+          change.entityId,
+          scalar(payload.firstName),
+          scalar(payload.middleName),
+          scalar(payload.lastName),
+          scalar(payload.dateOfBirth),
+          scalar(payload.sex),
+          scalar(payload.guardianId),
+          scalar(payload.facilityId)
+        ]
+      );
+      return;
+    }
+    case 'Vaccine': {
+      await db.execute(
+        `INSERT OR REPLACE INTO Vaccines (Id, Name, Code, IsActive) VALUES (?, ?, ?, ?);`,
+        [change.entityId, scalar(payload.name), scalar(payload.code), payload.isActive ? 1 : 0]
+      );
+      return;
+    }
+    case 'VaccineSchedule': {
+      await db.execute(
+        `INSERT OR REPLACE INTO VaccineSchedules (Id, VaccineId, DoseName, RecommendedAgeInWeeks, Sequence, IsActive)
+         VALUES (?, ?, ?, ?, ?, ?);`,
+        [
+          change.entityId,
+          scalar(payload.vaccineId),
+          scalar(payload.doseName),
+          scalar(payload.recommendedAgeInWeeks),
+          scalar(payload.sequence),
+          payload.isActive ? 1 : 0
+        ]
+      );
+      return;
+    }
+    case 'ImmunizationRecord': {
+      await db.execute(
+        `INSERT OR REPLACE INTO ImmunizationRecords (Id, ChildId, VaccineId, DoseName, DateAdministered, FacilityId, AdministeredByUserId, PendingSync)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
+        [
+          change.entityId,
+          scalar(payload.childId),
+          scalar(payload.vaccineId),
+          scalar(payload.doseName),
+          scalar(payload.dateAdministered),
+          scalar(payload.facilityId),
+          scalar(payload.administeredByUserId)
+        ]
+      );
+      return;
+    }
+    default:
+      return;
+  }
 }
 
 export async function getVaccines(): Promise<VaccineOption[]> {

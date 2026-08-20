@@ -55,6 +55,15 @@ export type VaccineOption = {
   code: string;
 };
 
+export type ServerChangeDto = {
+  changeVersion: number;
+  entityType: string;
+  entityId: string;
+  operationType: string;
+  payload: Record<string, unknown>;
+  serverTimestamp: string;
+};
+
 export type Paged<T> = {
   items: T[];
 };
