@@ -103,11 +103,8 @@ export async function getLocalChildren(query: string): Promise<ChildSummary[]> {
 /**
  * Applies one downloaded server change to the matching local table, so records created or
  * edited elsewhere (another device, the admin web app) become visible for offline search once
- * a sync has pulled them down. Only entity types the backend actually logs to ServerChangeLog
- * are handled (Child, Vaccine, VaccineSchedule, ImmunizationRecord) — Facility/Appointment changes
- * are not currently logged server-side, so there is nothing to apply for those yet. Guardian has
- * no changelog entries of its own either, but a Child's payload happens to nest its guardian, so
- * that gets upserted alongside the child as a bonus.
+ * a sync has pulled them down. Handles every entity type the backend logs to ServerChangeLog:
+ * Child, Guardian, Facility, Vaccine, VaccineSchedule, ImmunizationRecord, and Appointment.
  */
 type Scalar = string | number | boolean | null;
 
@@ -184,6 +181,37 @@ export async function applyServerChange(change: ServerChangeDto) {
           scalar(payload.dateAdministered),
           scalar(payload.facilityId),
           scalar(payload.administeredByUserId)
+        ]
+      );
+      return;
+    }
+    case 'Guardian': {
+      await db.execute(
+        `INSERT OR REPLACE INTO Guardians (Id, FullName, PhoneNumber, RelationshipToChild, Address, PendingSync)
+         VALUES (?, ?, ?, ?, ?, 0);`,
+        [change.entityId, scalar(payload.fullName), scalar(payload.phoneNumber), scalar(payload.relationshipToChild), scalar(payload.address)]
+      );
+      return;
+    }
+    case 'Facility': {
+      await db.execute(
+        `INSERT OR REPLACE INTO Facilities (Id, Name, Code) VALUES (?, ?, ?);`,
+        [change.entityId, scalar(payload.name), scalar(payload.code)]
+      );
+      return;
+    }
+    case 'Appointment': {
+      await db.execute(
+        `INSERT OR REPLACE INTO Appointments (Id, ChildId, VaccineId, DoseName, FacilityId, AppointmentDate, Status, PendingSync)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
+        [
+          change.entityId,
+          scalar(payload.childId),
+          scalar(payload.vaccineId),
+          scalar(payload.doseName),
+          scalar(payload.facilityId),
+          scalar(payload.appointmentDate),
+          scalar(payload.status)
         ]
       );
       return;
