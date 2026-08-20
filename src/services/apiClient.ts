@@ -6,8 +6,11 @@ import type { AuthSession, ChildSummary, FacilityOption, Paged, VaccineOption } 
 const defaultApiBaseUrl = 'https://hospital-app-production-a073.up.railway.app';
 
 export const apiClient = axios.create({
+  // Railway's free/hobby tier can cold-start a sleeping backend on the first request after
+  // a period of inactivity, which can take well over 15s - a low timeout here reads to the
+  // user as "could not load X" for what's actually just a slow wake-up, not a real failure.
   baseURL: process.env.API_BASE_URL ?? defaultApiBaseUrl,
-  timeout: 15000
+  timeout: 30000
 });
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };

@@ -48,9 +48,10 @@ export function RecordImmunizationScreen({ session }: { session: AuthSession }) 
       try {
         const remoteVaccines = await fetchVaccines();
         setVaccines(mergeById(localVaccines, remoteVaccines));
-      } catch {
+      } catch (error) {
+        console.warn('Failed to fetch vaccines from server:', getApiErrorMessage(error));
         if (localVaccines.length === 0) {
-          setVaccineError('Could not load vaccines. Check your connection and try again.');
+          setVaccineError(`Could not load vaccines: ${getApiErrorMessage(error)}`);
         }
       }
     } finally {
@@ -215,7 +216,14 @@ export function RecordImmunizationScreen({ session }: { session: AuthSession }) 
 
             <Text style={styles.label}>Vaccine</Text>
             {loadingVaccines ? <Text style={styles.helper}>Loading vaccines...</Text> : null}
-            {vaccineError ? <Text style={styles.helper}>{vaccineError}</Text> : null}
+            {vaccineError ? (
+              <View style={styles.facilityEmptyState}>
+                <Text style={styles.helper}>{vaccineError}</Text>
+                <Pressable style={styles.retryButton} onPress={() => void loadVaccines()}>
+                  <Text style={styles.retryButtonText}>Retry vaccines</Text>
+                </Pressable>
+              </View>
+            ) : null}
             <SelectField
               value={vaccines.find(v => v.id === form.vaccineId)?.name ?? 'Select vaccine'}
               open={vaccineMenuOpen}
