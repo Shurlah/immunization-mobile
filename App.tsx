@@ -8,6 +8,7 @@ import { loadSession } from './src/services/apiClient';
 import type { AuthSession } from './src/shared/types';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { RecordImmunizationScreen } from './src/screens/RecordImmunizationScreen';
 import { RegisterChildScreen } from './src/screens/RegisterChildScreen';
 import { SyncStatusScreen } from './src/screens/SyncStatusScreen';
 
@@ -16,6 +17,7 @@ const Tab = createBottomTabNavigator();
 const tabIcons = {
   Home: '⌂',
   Register: '+',
+  RecordVaccine: '💉',
   Sync: '↻'
 };
 
@@ -49,6 +51,9 @@ export default function App() {
         >
           <Tab.Screen name="Home">{() => <HomeScreen session={session} onLogout={() => setSession(null)} />}</Tab.Screen>
           <Tab.Screen name="Register">{() => <RegisterChildScreen session={session} />}</Tab.Screen>
+          <Tab.Screen name="RecordVaccine" options={{ title: 'Record Vaccine' }}>
+            {() => <RecordImmunizationScreen session={session} />}
+          </Tab.Screen>
           <Tab.Screen name="Sync" component={SyncStatusScreen} />
         </Tab.Navigator>
       </NavigationContainer>

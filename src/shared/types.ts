@@ -30,3 +30,31 @@ export type SyncQueueItem = {
   lastAttemptAt?: string;
   errorMessage?: string;
 };
+
+export type FacilityOption = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export type ChildSummary = {
+  id: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth: string;
+  sex: string;
+  guardianId: string;
+  guardianFullName?: string | null;
+  guardianPhoneNumber?: string | null;
+};
+
+export type VaccineOption = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export type Paged<T> = {
+  items: T[];
+};

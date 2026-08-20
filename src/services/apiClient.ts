@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import EncryptedStorage from 'react-native-encrypted-storage';
-import type { AuthSession } from '../shared/types';
+import type { AuthSession, ChildSummary, FacilityOption, Paged, VaccineOption } from '../shared/types';
 
 const defaultApiBaseUrl = 'https://hospital-app-production-a073.up.railway.app';
 
@@ -85,6 +85,44 @@ export async function login(email: string, password: string) {
   const response = await apiClient.post<AuthSession>('/api/auth/login', { email, password });
   await saveSession(response.data);
   return response.data;
+}
+
+export async function fetchFacilities() {
+  return (await apiClient.get<Paged<FacilityOption>>('/api/facilities', { params: { pageSize: 200 } })).data.items;
+}
+
+export async function fetchFacility(id: string) {
+  return (await apiClient.get<FacilityOption>(`/api/facilities/${id}`)).data;
+}
+
+type ChildSearchApiResult = {
+  id: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth: string;
+  sex: string;
+  guardianId: string;
+  guardian?: { fullName: string; phoneNumber: string } | null;
+};
+
+export async function searchChildren(params: { q?: string; phone?: string; facilityId?: string }) {
+  const response = await apiClient.get<ChildSearchApiResult[]>('/api/children/search', { params });
+  return response.data.map(item => ({
+    id: item.id,
+    firstName: item.firstName,
+    middleName: item.middleName,
+    lastName: item.lastName,
+    dateOfBirth: item.dateOfBirth,
+    sex: item.sex,
+    guardianId: item.guardianId,
+    guardianFullName: item.guardian?.fullName ?? null,
+    guardianPhoneNumber: item.guardian?.phoneNumber ?? null
+  })) as ChildSummary[];
+}
+
+export async function fetchVaccines() {
+  return (await apiClient.get<VaccineOption[]>('/api/vaccines')).data;
 }
 
 export function getApiErrorMessage(error: unknown) {

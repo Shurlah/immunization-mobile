@@ -6,13 +6,14 @@ export const loginSchema = z.object({
 });
 
 export const registerChildSchema = z.object({
+  caregiverName: z.string().min(1),
+  caregiverPhoneNumber: z.string().min(7),
+  relationshipToChild: z.string().optional(),
   firstName: z.string().min(1),
   middleName: z.string().optional(),
   lastName: z.string().min(1),
   dateOfBirth: z.string().min(1),
   sex: z.enum(['Male', 'Female']),
-  caregiverName: z.string().min(1),
-  caregiverPhoneNumber: z.string().min(7),
   facilityId: z.string().uuid(),
   healthWorkerId: z.string().uuid()
 });

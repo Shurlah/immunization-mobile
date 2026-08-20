@@ -7,15 +7,21 @@ export async function saveChildRegistration(input: RegisterChildInput) {
   const childId = createUuid();
 
   await db.execute(
-    `INSERT INTO Guardians (Id, FullName, PhoneNumber, PendingSync) VALUES (?, ?, ?, 1);`,
-    [guardianId, input.caregiverName, input.caregiverPhoneNumber]
+    `INSERT INTO Guardians (Id, FullName, PhoneNumber, RelationshipToChild, PendingSync) VALUES (?, ?, ?, ?, 1);`,
+    [guardianId, input.caregiverName, input.caregiverPhoneNumber, input.relationshipToChild ?? null]
   );
   await enqueueSyncItem({
     clientChangeId: createUuid(),
     entityType: 'Guardian',
     entityId: guardianId,
     operationType: 'Create',
-    payload: { id: guardianId, fullName: input.caregiverName, phoneNumber: input.caregiverPhoneNumber }
+    payload: {
+      id: guardianId,
+      fullName: input.caregiverName,
+      phoneNumber: input.caregiverPhoneNumber,
+      alternativePhoneNumber: null,
+      relationshipToChild: input.relationshipToChild ?? null
+    }
   });
 
   const childPayload = {
@@ -27,7 +33,8 @@ export async function saveChildRegistration(input: RegisterChildInput) {
     sex: input.sex,
     guardianId,
     facilityId: input.facilityId,
-    createdByUserId: input.healthWorkerId
+    createdByUserId: input.healthWorkerId,
+    createdByDeviceId: null
   };
 
   await db.execute(

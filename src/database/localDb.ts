@@ -1,7 +1,7 @@
 import { open } from '@op-engineering/op-sqlite';
 import { migrations } from './schema';
 import { createUuid } from '../shared/uuid';
-import type { DashboardState } from '../shared/types';
+import type { ChildSummary, DashboardState, FacilityOption, VaccineOption } from '../shared/types';
 
 export const db = open({ name: 'immunization-local.db' });
 
@@ -67,4 +67,46 @@ export async function getDashboardState(online: boolean): Promise<DashboardState
     appointmentsDueToday: Number(row.appointmentsDueToday ?? 0),
     lastSuccessfulSyncAt: row.lastSuccessfulSyncAt ?? undefined
   };
+}
+
+export async function getFacilities(): Promise<FacilityOption[]> {
+  const result = await db.execute(
+    `SELECT Id AS id, Name AS name, Code AS code
+     FROM Facilities
+     ORDER BY Name;`
+  );
+
+  return ((result.rows ?? []) as unknown as FacilityOption[]).map(item => ({
+    id: item.id,
+    name: item.name,
+    code: item.code
+  }));
+}
+
+export async function getLocalChildren(query: string): Promise<ChildSummary[]> {
+  const like = `%${query}%`;
+  const result = await db.execute(
+    `SELECT c.Id AS id, c.FirstName AS firstName, c.MiddleName AS middleName, c.LastName AS lastName,
+            c.DateOfBirth AS dateOfBirth, c.Sex AS sex, c.GuardianId AS guardianId,
+            g.FullName AS guardianFullName, g.PhoneNumber AS guardianPhoneNumber
+     FROM Children c
+     LEFT JOIN Guardians g ON g.Id = c.GuardianId
+     WHERE c.FirstName LIKE ? OR c.LastName LIKE ? OR g.PhoneNumber LIKE ?
+     ORDER BY c.LastName, c.FirstName
+     LIMIT 25;`,
+    [like, like, like]
+  );
+
+  return (result.rows ?? []) as unknown as ChildSummary[];
+}
+
+export async function getVaccines(): Promise<VaccineOption[]> {
+  const result = await db.execute(
+    `SELECT Id AS id, Name AS name, Code AS code
+     FROM Vaccines
+     WHERE IsActive = 1
+     ORDER BY Name;`
+  );
+
+  return (result.rows ?? []) as unknown as VaccineOption[];
 }
