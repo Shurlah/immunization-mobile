@@ -1,11 +1,35 @@
 import { open } from '@op-engineering/op-sqlite';
+import EncryptedStorage from 'react-native-encrypted-storage';
 import { migrations } from './schema';
 import { createUuid } from '../shared/uuid';
 import type { ChildSummary, DashboardState, FacilityOption, ServerChangeDto, VaccineOption } from '../shared/types';
 
-export const db = open({ name: 'immunization-local.db' });
+const ENCRYPTION_KEY_STORAGE_ID = 'db_encryption_key';
+
+// Assigned by initializeDatabase(), which App.tsx always awaits before any screen touches db.
+export let db: ReturnType<typeof open>;
+
+// Per-install SQLCipher key, kept in the keychain/keystore via EncryptedStorage like the session token.
+async function getOrCreateEncryptionKey(): Promise<string> {
+  const existing = await EncryptedStorage.getItem(ENCRYPTION_KEY_STORAGE_ID);
+  if (existing) {
+    return existing;
+  }
+
+  const keyBytes = new Uint8Array(32);
+  crypto.getRandomValues(keyBytes);
+  const key = Array.from(keyBytes)
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+
+  await EncryptedStorage.setItem(ENCRYPTION_KEY_STORAGE_ID, key);
+  return key;
+}
 
 export async function initializeDatabase() {
+  const encryptionKey = await getOrCreateEncryptionKey();
+  db = open({ name: 'immunization-local.db', encryptionKey });
+
   for (const migration of migrations) {
     await db.execute(migration);
   }
