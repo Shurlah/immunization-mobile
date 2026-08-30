@@ -38,17 +38,17 @@ export function RegisterChildScreen({ session }: { session: AuthSession }) {
 
     try {
       const localFacilities = await getLocalFacilities();
-      let workingFacilities = withAssignedFacility(localFacilities, session.facilityId);
+      let workingFacilities = scopeToAssignedFacility(withAssignedFacility(localFacilities, session.facilityId), session.facilityId);
       setFacilities(workingFacilities);
 
       try {
         const remoteFacilities = await fetchFacilities();
-        workingFacilities = withAssignedFacility(mergeFacilities(localFacilities, remoteFacilities), session.facilityId);
+        workingFacilities = scopeToAssignedFacility(withAssignedFacility(mergeFacilities(localFacilities, remoteFacilities), session.facilityId), session.facilityId);
       } catch {
         if (session.facilityId) {
           const assignedFacility = await fetchFacility(session.facilityId).catch(() => null);
           if (assignedFacility) {
-            workingFacilities = mergeFacilities(workingFacilities, [assignedFacility]);
+            workingFacilities = scopeToAssignedFacility(mergeFacilities(workingFacilities, [assignedFacility]), session.facilityId);
           }
         }
       }
@@ -61,9 +61,12 @@ export function RegisterChildScreen({ session }: { session: AuthSession }) {
     } catch {
       const localFacilities = await getLocalFacilities();
       const assignedFacility = session.facilityId ? await fetchFacility(session.facilityId).catch(() => null) : null;
-      const fallbackFacilities = assignedFacility
-        ? mergeFacilities(withAssignedFacility(localFacilities, session.facilityId), [assignedFacility])
-        : withAssignedFacility(localFacilities, session.facilityId);
+      const fallbackFacilities = scopeToAssignedFacility(
+        assignedFacility
+          ? mergeFacilities(withAssignedFacility(localFacilities, session.facilityId), [assignedFacility])
+          : withAssignedFacility(localFacilities, session.facilityId),
+        session.facilityId
+      );
       setFacilities(fallbackFacilities);
       setFacilityError(fallbackFacilities.length > 0 ? null : 'Could not load facilities.');
     } finally {
@@ -154,14 +157,19 @@ export function RegisterChildScreen({ session }: { session: AuthSession }) {
 
         <Text style={styles.label}>Facility</Text>
         {loadingFacilities ? <Text style={styles.helper}>Loading facilities...</Text> : null}
+        {!loadingFacilities && session.facilityId ? (
+          <Text style={styles.helper}>Registering at your assigned facility.</Text>
+        ) : null}
         {!loadingFacilities && facilities.length > 0 ? (
           <View style={styles.facilityList}>
             {facilities.map(item => {
               const selected = item.id === form.facilityId;
+              const locked = !!session.facilityId;
               return (
                 <Pressable
                   key={item.id}
                   style={[styles.facilityOption, selected && styles.facilityOptionSelected]}
+                  disabled={locked}
                   onPress={() => setForm({ ...form, facilityId: item.id })}
                 >
                   <Text style={[styles.facilityName, selected && styles.facilityNameSelected]}>{item.name}</Text>
@@ -257,6 +265,16 @@ function withAssignedFacility(facilities: FacilityOption[], facilityId: string |
   }
 
   return [{ id: facilityId, name: 'Assigned facility', code: facilityId.slice(0, 8).toUpperCase() }, ...facilities];
+}
+
+/**
+ * A health worker with an assigned facility must only ever register children at that
+ * facility - the backend rejects a mismatched FacilityId anyway, but the picker should
+ * never offer other facilities in the first place.
+ */
+function scopeToAssignedFacility(facilities: FacilityOption[], facilityId: string | null) {
+  if (!facilityId) return facilities;
+  return facilities.filter(item => item.id === facilityId);
 }
 
 function clean(value: string) {
